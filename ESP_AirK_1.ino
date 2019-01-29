@@ -81,7 +81,8 @@ int try_reconnect() {
       EEPROM.put(0, eepromData);
       EEPROM.commit();
       delay(100);
-      ESP.reset();
+//      ESP.reset();
+      return 1;
     }
   }
   if (prev_wifi_creditials_active){
@@ -103,6 +104,9 @@ void setup() {
   BtnTimer.setTimeout(2000);
   BtnTimer.stop();
 
+  CalibrationTimer.setTimeout(120000); //2min wait for calibration to end
+  CalibrationTimer.stop();
+
   Serial.begin(115200);
   while (!Serial) continue;
   DPRINTLNFUNC("Serial started");
@@ -110,12 +114,14 @@ void setup() {
   pinMode(LED_PIN_BLUE, OUTPUT);
   pinMode(LED_PIN_RED, OUTPUT);
   pinMode(LED_PIN_GREEN, OUTPUT);
+  pinMode(FULLRESETPIN, INPUT_PULLUP);
+  pinMode(ONOFFPIN, OUTPUT);
+  pinMode(CALIBRATIONPIN, OUTPUT);
+
   digitalWrite(LED_PIN_BLUE, LOW);
   digitalWrite(LED_PIN_RED, LOW);
   digitalWrite(LED_PIN_GREEN, LOW);
-  
-  pinMode(FULLRESETPIN, INPUT_PULLUP);
-  pinMode(ONOFFPIN, OUTPUT);
+  digitalWrite(CALIBRATIONPIN, HIGH);
 
   for (int i = 0; i < 20; i++) {
     digitalWrite(LED_PIN_BLUE, 1);
@@ -127,6 +133,44 @@ void setup() {
   if (digitalRead(FULLRESETPIN)==0) InitialWriteEEPROM();
   ReadEEPROM();
   MqttConnectionTimer.setTimeout(60000);
+
+///////////CALIBRATION////////////////////////////////////////////////////////////////////////////////////////////////
+
+    if (ButtonWifi.isPressed()) {
+    BtnTimer.restart();
+    DPRINTLNFUNC("Button calibration pressed - wait 2 sec");
+
+    while (ButtonWifi.isPressed()) {
+      if (BtnTimer.onExpired()) {
+        if (ButtonWifi.isPressed()) {
+          DPRINTLNFUNC("BUTTON calibration pressed - calibration mode started");
+          delay(5000); //wait stm32 to start 
+          digitalWrite(CALIBRATIONPIN,LOW); //Start calibration
+          CalibrationTimer.restart();
+          while(1) {
+            digitalWrite(LED_PIN_GREEN, led);
+            led = !led;
+            delay(500);
+            if (CalibrationTimer.isExpired()) {
+              digitalWrite(LED_PIN_GREEN, LOW);
+                for (int i = 0; i < 25; i++) {
+                      digitalWrite(LED_PIN_RED, 1);
+                      delay(100);
+                      digitalWrite(LED_PIN_RED, 0);
+                      delay(100);
+                    }
+              ESP.reset();
+            }
+          }
+        }
+        else {
+          BtnTimer.stop();
+          break;
+        }
+      }
+      delay(10);
+    }
+  }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   
@@ -193,8 +237,18 @@ void setup() {
       digitalWrite(ONOFFPIN,HIGH);
       WiFi.mode(WIFI_STA);
       WiFi.begin(eepromData.WifiSsid, eepromData.WifiPassword);
-      if (!try_reconnect()) DPRINTLNFUNC("WiFi connected");
-      eepromData.DeviceState = 1;
+      if (!try_reconnect()) {
+        DPRINTLNFUNC("WiFi connected");
+        eepromData.DeviceState = 1;
+      }
+      else {
+        DPRINTLNFUNC("Cant connect to wifi anyway afrer all attempts, start in server mode for wifi WifiPassword configuration");
+        eepromData.SetWifiMode = 1;     
+        EEPROM.put(0, eepromData);
+        EEPROM.commit();
+        ESP.reset();
+      }
+      
       EEPROM.put(0, eepromData);
       EEPROM.commit();
     }
@@ -295,7 +349,8 @@ void loop() {
       if (BtnTimer.onExpired()) {
         if (ButtonWifi.isPressed()) {
           DPRINTLNFUNC("BUTTON SET WIFI PRESSED - RESTARTING");
-          eepromData.SetWifiMode = 1;
+          if (eepromData.SetWifiMode != 1) eepromData.SetWifiMode = 1;
+          else eepromData.SetWifiMode = 0; 
 
           EEPROM.put(0, eepromData);
           EEPROM.commit();
