@@ -8,6 +8,7 @@
 #define BTN 5
 #define FULLRESETPIN 4
 #define ONOFFPIN 16
+#define CALIBRATIONPIN 2
 
 //////////////////////////////////////////////////////
 #define DEBUG
@@ -43,7 +44,7 @@ int standart_mqtt_server_port=1883;
 char*standart_mqtt_server_login="";
 char*standart_mqtt_server_password="";
 
-char*standart_mqtt_service_server_address="192.168.88.230";
+char*standart_mqtt_service_server_address="192.168.88.203";
 int standart_mqtt_service_server_port=1883;
 char*standart_mqtt_service_server_login="";
 char*standart_mqtt_service_server_password="";
@@ -89,5 +90,6 @@ StaticJsonDocument<2000> doc_out;
 WiFiServer server(80);
 
 RBD::Timer BtnTimer;
+RBD::Timer CalibrationTimer;
 RBD::Timer MqttConnectionTimer;
 RBD::Button ButtonWifi(BTN);
